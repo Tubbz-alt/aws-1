@@ -3,7 +3,7 @@ import boto3
 from chalice import Chalice
 
 # Setup chalice APP
-app = Chalice(app_name='enram-bucket-sync')
+app = Chalice(app_name='enram-vp-backup')
 
 @app.on_s3_event(bucket='lw-enram', events=['s3:ObjectCreated:*'])
 def handler(event):
