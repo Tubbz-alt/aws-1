@@ -1,0 +1,23 @@
+{
+  "resources": [
+    {
+      "name": "handler_role",
+      "resource_type": "iam_role",
+      "role_arn": "arn:aws:iam::226308051916:role/enram-backup-vp-dev-handler",
+      "role_name": "enram-backup-vp-dev-handler"
+    },
+    {
+      "name": "handler",
+      "resource_type": "lambda_function",
+      "lambda_arn": "arn:aws:lambda:eu-west-1:226308051916:function:enram-backup-vp-dev-handler"
+    },
+    {
+      "name": "handler-s3event",
+      "resource_type": "s3_event",
+      "bucket": "lw-enram",
+      "lambda_arn": "arn:aws:lambda:eu-west-1:226308051916:function:enram-backup-vp-dev-handler"
+    }
+  ],
+  "schema_version": "2.0",
+  "backend": "api"
+}
