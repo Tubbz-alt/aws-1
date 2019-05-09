@@ -1,10 +1,10 @@
 {
   "resources": [
     {
-      "name": "default-role",
+      "name": "handler_role",
       "resource_type": "iam_role",
-      "role_arn": "arn:aws:iam::226308051916:role/enram-backup-vp-dev",
-      "role_name": "enram-backup-vp-dev"
+      "role_arn": "arn:aws:iam::226308051916:role/enram-backup-vp-dev-handler",
+      "role_name": "enram-backup-vp-dev-handler"
     },
     {
       "name": "handler",
