@@ -1,5 +1,7 @@
 ---
-# AWS CloudFormation settings to setup the oscibio compute environment cluster
+# AWS CloudFormation settings for an oscibio cluster
+# It defines a number of resources, including a BatchComputeEnvironment and BatchJobQueue
+
 AWSTemplateFormatVersion: "2010-09-09"
 
 Description: Cluster for the Open science lab for biodiversity.
