@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Template to deploy (array) batch job to the oscibio cluster"
+Parameters:
+  JobDefinitionName:
+    Type: String
+    Description: Name of the batch job
+  S3Bucket:
+    Type: String
+    Description: S3 bucket the job needs access to
+    Default: ''
+  ImageURI:
+    Type: String
+    Description: URL of the Docker image containing the batch job code itself
+    Default: ''
+  ContainerMemory:
+    Type: Number
+    Description: Required memory of the container (1024, 2048,...)
+    Default: 256
+  ContainerCPUs:
+    Type: Number
+    Description: Required number of CPUs of the container (2,...)
+    Default: 1
+  RuleSchedule:
+    Type: String
+    Description: Schedule rule (frequency) for the batch job to run
+    Default: rate(7 day)
+Resources:
+  IAM:  # main role for the cloudformation stack orchestration (registration of dockers,;..)
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: batch-job-root-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:GetAuthorizationToken
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - batch:SubmitJob
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+      RoleName: !Sub
+        - ${Param1}-role
+        - Param1: !Sub '${AWS::StackName}'
+  BatchJobRole:  # The permissions the batch job requires
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: batch-job-s3-acess  # GET/PUT access to the S3 bucket
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3Bucket}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3Bucket}'
+      Path: /
+  BatchJobDefinition: # The description of the batch job
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      Type: container
+      JobDefinitionName: !Ref 'JobDefinitionName'
+      RetryStrategy:
+        Attempts: 1
+      Parameters:
+        awsbucket: !Ref 'S3Bucket'
+      ContainerProperties:
+        Command:  # TODO: MAKE REUSABLE! (generalize Docker of define specific 'handler' command?)
+          - python
+          - /app/task.py
+        Memory: !Ref 'ContainerMemory'
+        Privileged: true
+        JobRoleArn: !GetAtt 'BatchJobRole.Arn'
+        ReadonlyRootFilesystem: false
+        Vcpus: 1
+        Image: !Ref 'ImageURI'
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CustomLocalPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - batch:SubmitJob
+                Resource:
+                  - "*"
+  JobSubmitFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt [ LambdaExecutionRole, Arn ]
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          def handler(event, context):
+              params = {
+                  'jobName': 'schedule-sample-job',
+                  'jobQueue': os.environ.get('JOB_QUEUE'),
+                  'jobDefinition': os.environ.get('JOB_DEFINITION')
+              }
+              print(params)
+              client = boto3.client('batch')
+              res = client.submit_job(**params)
+              print(res)
+      Runtime: "python3.6"
+      Environment:
+        Variables:
+          JOB_QUEUE: !ImportValue 'oscibioJobQueue'
+          JOB_DEFINITION: !Ref 'BatchJobDefinition'
+  JobSubmitEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: !Ref 'RuleSchedule'
+      Targets:
+        - Id: JobSubmitScheduler
+          Arn:
+            Fn::GetAtt:
+              - JobSubmitFunction
+              - Arn
+  InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Fn::GetAtt:
+          - JobSubmitFunction
+          - Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+          - JobSubmitEventRule
+          - Arn
