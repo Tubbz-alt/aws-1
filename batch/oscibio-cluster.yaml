@@ -1,0 +1,227 @@
+---
+# AWS CloudFormation settings for an oscibio cluster
+# It defines a number of resources, including a BatchComputeEnvironment and BatchJobQueue
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Cluster for the Open science lab for biodiversity.
+
+Parameters:
+  AWSRegion:
+    Type: String
+    Description: AWS Region to deploy this stack
+    Default: eu-west-1
+    AllowedValues:
+    - eu-west-1
+    - eu-west-2
+  KeypairName:
+    Type: String
+    Description: Name the EC2 keypair to use for this stack. This should be created
+      beforehand via the console.
+    Default: ""
+  ImageAmiId:
+    Type: String
+    Description: AMI Image to use within the compute environment (ECR optimized),
+      see https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    Default: ami-05b65c0f6a75c1c64
+  VpcId:
+    Type: String
+    Description: VPC of the stack
+    Default: vpc-cc8610a8 # INBO DEV/UAT VPC
+  SubnetId:
+    Type: String
+    Description: Subnets to create the stack
+    Default: subnet-c8fc9fbe # INBO
+  ResourceLevelTags:
+    Type: CommaDelimitedList
+    Description: "Tags to add on resource level crucial for cost calculation. Remark:
+      the order of the comma delimited list does matter: NAME,BUSINESS_UNIT,COST_CENTER,OWNER"
+    Default: oscibio-cluster,LIFEWATCH,EVINBO,LIFEWATCH
+
+Resources:
+  IAM:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: AWSBatchRootPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - ecr:BatchCheckLayerAvailability
+            - ecr:BatchGetImage
+            - ecr:GetDownloadUrlForLayer
+            - ecr:GetAuthorizationToken
+            - ecs:CreateCluster
+            - ecs:DeregisterContainerInstance
+            - ecs:DiscoverPollEndpoint
+            - ecs:Poll
+            - ecs:RegisterContainerInstance
+            - ecs:StartTelemetrySession
+            - ecs:Submit*
+            - ecr:GetAuthorizationToken
+            - ecr:BatchCheckLayerAvailability
+            - ecr:GetDownloadUrlForLayer
+            - ecr:BatchGetImage
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: "*"
+      RoleName:
+        Fn::Join:
+        - "-"
+        - - Fn::Sub: "${AWS::StackName}"
+          - role
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join:
+        - "-"
+        - - Fn::Sub: "${AWS::StackName}"
+          - sg
+      GroupDescription: Security Group for oscibio-cluster
+      VpcId:
+        Ref: VpcId
+      SecurityGroupEgress:
+        CidrIp: 0.0.0.0/0
+        IpProtocol: -1
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+  AWSBatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: batch.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+      Path: "/service-role/"
+  AmazonEC2SpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: spotfleet.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetRole
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+      Path: "/"
+  BatchInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      Path: "/"
+  BatchInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - Ref: BatchInstanceRole
+      Path: "/"
+  BatchComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      Type: MANAGED
+      ServiceRole:
+        Fn::GetAtt:
+        - AWSBatchServiceRole
+        - Arn
+      ComputeEnvironmentName: oscibio-cluster
+      ComputeResources:
+        SpotIamFleetRole:
+          Fn::GetAtt:
+          - AmazonEC2SpotFleetRole
+          - Arn
+        ImageId:
+          Ref: ImageAmiId
+        MaxvCpus: 8
+        DesiredvCpus: 0
+        MinvCpus: 0
+        BidPercentage: 80
+        SecurityGroupIds:
+        - Fn::GetAtt:
+          - SecurityGroup
+          - GroupId
+        Subnets:
+          Fn::Split:
+          - ","
+          - Ref: SubnetId
+        Type: SPOT
+        InstanceRole:
+          Fn::GetAtt:
+          - BatchInstanceProfile
+          - Arn
+        InstanceTypes:
+        - c4.xlarge
+        - c5.large
+        Ec2KeyPair:
+          Ref: KeypairName
+        Tags:
+          NAME:
+            Fn::Select:
+            - 0
+            - Ref: ResourceLevelTags
+          BUSINESS_UNIT:
+            Fn::Select:
+            - 1
+            - Ref: ResourceLevelTags
+          COST_CENTER:
+            Fn::Select:
+            - 2
+            - Ref: ResourceLevelTags
+          OWNER:
+            Fn::Select:
+            - 3
+            - Ref: ResourceLevelTags
+      State: ENABLED
+  BatchJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+      - Order: 1
+        ComputeEnvironment:
+          Ref: BatchComputeEnvironment
+      State: ENABLED
+      Priority: 1
+      JobQueueName: Default
+  
+Outputs:
+  BatchComputeArn:
+    Description: "Identifier/ARN of the Batch compute environment"
+    Value: !Ref BatchComputeEnvironment
+    Export:
+      Name: "oscibioComputeEnvironment"
+  BatchJobQueueArn:
+    Description: Identifier/ARN of the Batch job que
+    Value: !Ref BatchJobQueue
+    Export:
+      Name: "oscibioJobQueue"
