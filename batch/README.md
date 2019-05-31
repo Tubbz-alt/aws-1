@@ -83,11 +83,14 @@ To remove the cluster, use `aws cloudformation delete-stack --stack-name oscibio
 
 # TODO
 
-TODO: ADD S3 bucket for the credentials!
+TODO: ADD S3 bucket for the credentials (or AWS )
     - add S3 bucket to template + permissions,...
     - provide instructions on how to put credentials in S3
     - add download of creds into python routine
+(note: https://eu-west-1.console.aws.amazon.com/kms could be a better alternative?!?)
 
 TODO: make BidPercentage and max CPU a parameter of cluster setup
 
 TODO: current python script has bucket name harcoded, should be os.environ[]
+
+TODO: adapt to support array jobs and make embarissingly parallel possible
