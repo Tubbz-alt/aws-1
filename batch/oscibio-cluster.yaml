@@ -36,7 +36,7 @@ Parameters:
     Type: CommaDelimitedList
     Description: "Tags to add on resource level crucial for cost calculation. Remark:
       the order of the comma delimited list does matter: NAME,BUSINESS_UNIT,COST_CENTER,OWNER"
-    Default: oscibio-cluster,LIFEWATCH,EVINBO,LIFEWATCH
+    Default: oscibio-cluster,LIFEWATCH,EVINBO,LIFEWATCH,FALSE
 
 Resources:
   IAM:
@@ -202,6 +202,10 @@ Resources:
             Fn::Select:
             - 3
             - Ref: ResourceLevelTags
+          RUNDECK:
+            Fn::Select:
+            - 4
+            - Ref: ResourceLevelTags
       State: ENABLED
   BatchJobQueue:
     Type: AWS::Batch::JobQueue
@@ -213,7 +217,7 @@ Resources:
       State: ENABLED
       Priority: 1
       JobQueueName: Default
-  
+
 Outputs:
   BatchComputeArn:
     Description: "Identifier/ARN of the Batch compute environment"
