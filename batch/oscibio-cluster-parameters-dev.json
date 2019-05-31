@@ -1,0 +1,26 @@
+[
+  {
+    "ParameterKey": "AWSRegion",
+    "ParameterValue": "eu-west-1"
+  },
+  {
+    "ParameterKey": "KeypairName",
+    "ParameterValue": "LW-INBO-OSCIBIO-CLUSTER-DEV"
+  },
+  {
+    "ParameterKey": "ImageAmiId",
+    "ParameterValue": "ami-05b65c0f6a75c1c64"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "vpc-cc8610a8"
+  },
+  {
+    "ParameterKey": "SubnetId",
+    "ParameterValue": "subnet-c8fc9fbe,subnet-8c4dfcd4,subnet-fef98e9a"
+  },
+  {
+    "ParameterKey": "ResourceLevelTags",
+    "ParameterValue": "oscibio-cluster,LIFEWATCH,EVINBO,LIFEWATCH,FALSE"
+  }
+]
